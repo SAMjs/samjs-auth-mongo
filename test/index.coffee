@@ -180,8 +180,7 @@ describe "samjs", ->
       .then ->
         return samjs.shutdown() if samjs.shutdown?
       .then ->  done()
+    else if samjs.shutdown?
+      samjs.shutdown().then -> done()
     else
-      if samjs.shutdown?
-        samjs.shutdown().then -> done()
-      else
-        done()
+      done()
