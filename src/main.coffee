@@ -11,7 +11,7 @@ module.exports = (samjs) ->
         if samjs.options.hierarchical
           if samjs.configs.groups.value?
             i = samjs.configs.groups.value.indexOf(permission)
-            return samjs.options.groups.slice i
+            return samjs.configs.groups.value.slice i
       return [permission]
     return permission
 
@@ -121,7 +121,7 @@ module.exports = (samjs) ->
 
     configs: [{
       name: "groups"
-      data: ["root"]
+      value: ["root"]
       test: (value) -> new samjs.Promise (resolve, reject) ->
         if samjs.util.isArray(value)
           resolve(data)
