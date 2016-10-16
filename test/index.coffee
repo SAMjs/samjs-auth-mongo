@@ -1,5 +1,6 @@
 chai = require "chai"
 should = chai.should()
+chai.use require "chai-as-promised"
 samjs = require "samjs"
 samjsClient = require "samjs-client"
 samjsMongo = require "samjs-mongo"
@@ -18,7 +19,7 @@ mongodb = "mongodb://localhost/test"
 
 describe "samjs", ->
   client = null
-  before (done) ->
+  before ->
     fs.unlinkAsync testConfigFile
     .catch -> return true
     .finally ->
@@ -26,27 +27,26 @@ describe "samjs", ->
       .plugins(samjsMongo,samjsAuth,samjsMongoAuth,samjsAuthMongo)
       .options({config:testConfigFile})
       .configs({name:"testConfig",read:"root",write:"root"})
-      done()
 
 
   describe "auth-mongo", ->
     users = null
     describe "configs", ->
-      it "should reject get", (done) ->
+      it "should reject get", ->
         samjs.configs.testConfig.get()
-        .catch -> done()
-      it "should reject set", (done) ->
+        .should.be.rejected
+      it "should reject set", ->
         samjs.configs.testConfig.set()
-        .catch -> done()
-      it "should reject test", (done) ->
+        .should.be.rejected
+      it "should reject test", ->
         samjs.configs.testConfig.test()
-        .catch -> done()
+        .should.be.rejected
     describe "models", ->
       it "should create users", ->
         samjs.models()
         should.exist samjs.models.users
     describe "startup", ->
-      it "should configure", (done) ->
+      it "should configure", ->
         samjs.startup().io.listen(port)
         client = samjsClient({
           url: url
@@ -59,71 +59,47 @@ describe "samjs", ->
         .then ->
           client.install.set "mongoURI", mongodb
           client.install.onceConfigured
-        .then -> done()
-        .catch done
-      it "should not install when false user is supplied", (done) ->
+
+      it "should not install when false user is supplied",  ->
         client.install.onceInstall
         .then ->
           client.auth.createRoot {}
-        .catch (e) ->
-          e.message.should.equal "Username and password required"
-          done()
-      it "should install", (done) ->
+        .should.be.rejected
+      it "should install", ->
         client.auth.createRoot {name:"root",pwd:"rootroot"}
         .then ->
           client.install.onceInstalled
-        .then -> done()
-        .catch done
-      it "should be started up", (done) ->
+
+      it "should be started up", ->
         samjs.state.onceStarted
-        .then -> done()
-        .catch done
-      it "should reject users.find", (done) ->
+
+      it "should reject users.find", ->
         users = new client.Mongo("users")
-        users.find()
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject users.count", (done) ->
-        users.count()
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject users.remove", (done) ->
-        users.remove({name:"root"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject users.insert", (done) ->
+        users.find().should.be.rejected
+      it "should reject users.count", ->
+        users.count().should.be.rejected
+      it "should reject users.remove", ->
+        users.remove({name:"root"}).should.be.rejected
+      it "should reject users.insert", ->
         users.insert({name:"root",pwd:"newpwd"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject users.update", (done) ->
+        .should.be.rejected
+      it "should reject users.update", ->
         users.update(cond:{group:"root"}, doc: {pwd:"newpwd"})
-        .then (result) ->
-          should.not.exist result
-        .catch (e) ->
-          done()
-      it "should reject config.set", (done) ->
+        .should.be.rejected
+      it "should reject config.set", ->
         client.config.set("testConfig","value")
-        .catch -> done()
-      it "should reject config.get", (done) ->
+        .should.be.rejected
+      it "should reject config.get", ->
         client.config.get("testConfig")
-        .catch -> done()
-      it "should auth", (done) ->
+        .should.be.rejected
+      it "should auth", ->
         client.auth.login {name:"root",pwd:"rootroot"}
         .then (result) ->
           result.name.should.equal "root"
           result.group.should.equal "root"
-          done()
-        .catch done
+
       describe "once authenticated", ->
-        it "should users.find", (done) ->
+        it "should users.find",  ->
           users.find(find:{name:"root"})
           .then (result) ->
             result = result[0]
@@ -133,54 +109,43 @@ describe "samjs", ->
             should.exist result.name
             result.name.should.equal "root"
             should.not.exist result.pwd
-            done()
-          .catch done
-        it "should users.insert", (done) ->
+
+        it "should users.insert", ->
           users.insert({name:"root2",pwd:"newpwd",group:"root"})
           .then (result) ->
             should.exist result._id
-            done()
-          .catch done
-        it "should users.count", (done) ->
+
+        it "should users.count", ->
           users.count({group:"root"})
           .then (result) ->
             result.should.equal 2
-            done()
-          .catch done
-        it "should users.update", (done) ->
+
+        it "should users.update", ->
           users.update(cond:{name:"root2"}, doc: {group:"all"})
           .then (result) ->
             result.length.should.equal 1
             users.find(find: result[0])
           .then (result) ->
             result[0].group.should.equal "all"
-            done()
-          .catch done
-        it "should users.remove", (done) ->
+
+        it "should users.remove", ->
           users.remove({name:"root2"})
           .then (result) ->
             result.length.should.equal 1
-            done()
-          .catch done
-        it "should config.set", (done) ->
+
+        it "should config.set", ->
           client.config.set("testConfig","value")
-          .then -> done()
-          .catch done
-        it "should config.get", (done) ->
+
+        it "should config.get",  ->
           client.config.get("testConfig")
           .then (result) ->
             result.should.equal "value"
-            done()
-          .catch done
 
-  after (done) ->
+  after ->
     if samjs.models.users?
       model = samjs.models.users.dbModel
       model.remove({})
       .then ->
         return samjs.shutdown() if samjs.shutdown?
-      .then ->  done()
     else if samjs.shutdown?
-      samjs.shutdown().then -> done()
-    else
-      done()
+      samjs.shutdown()

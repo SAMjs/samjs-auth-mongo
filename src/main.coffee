@@ -65,10 +65,11 @@ module.exports = (samjs) ->
             .then (result) -> success:true, content:result
             .catch (e) -> success:false, content:e?.message
             .then (response) ->
-              socket.emit "authMongo.createRoot." + request.token, response
               if response.success
                 debug "user installed completely"
                 samjs.state.checkInstalled()
+              socket.emit "authMongo.createRoot." + request.token, response
+
           else
             socket.emit "authMongo.createRoot." + request.token,
               {success:false, content: "Username and password required"}

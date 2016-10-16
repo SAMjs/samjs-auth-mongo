@@ -1,1 +1,1 @@
-{"mongoURI":"mongodb://localhost/test","testConfig":"value"}
+{"mongoURI":"mongodb://localhost/test","isConfigured":true,"isInstalled":true,"testConfig":"value"}
