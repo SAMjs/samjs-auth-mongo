@@ -39,6 +39,7 @@ module.exports = (samjs) ->
     @installComp ?=
       paths: [path.resolve(__dirname, "./createUser")]
       icons: ["material-person","material-vpn_key"]
+    @populate = options.populate
     pc = @permissionChecker
     pc ?= samjs.options.permissionChecker
     if pc == "inGroup"
@@ -49,6 +50,7 @@ module.exports = (samjs) ->
     else
       options.read ?= [samjs.options.rootUser]
       options.write ?= [samjs.options.rootUser]
+    @isRequired ?= true
     @test = (value) ->
       @dbModel.count {group:samjs.options.groupRoot}
       .then (data) ->
@@ -65,6 +67,8 @@ module.exports = (samjs) ->
         if request.token?
           if request?.content? and request.content[samjs.options.username]? and
               request.content[samjs.options.password]?
+            if @plugins.isOwner?
+              request.content.owner = request.content[samjs.options.username]
             @dbModel.create request.content
             .then (result) -> success:true, content:result
             .catch (e) -> success:false, content:e?.message
@@ -109,12 +113,16 @@ module.exports = (samjs) ->
         samjs.auth.crypto.generateHashedPassword(@,next)
 
   usersModel = null
-  samjs.auth.replaceUserHandler (userName) ->
-    usersModel ?= samjs.models.users.dbModel
-    find = {}
-    find[samjs.options.username] = userName
-    return usersModel.findOne(find).then (response) ->
-      response.toObject(versionKey: false)
+  samjs.auth.replaceUserHandler ((userName) ->
+      usersModel ?= samjs.models.users.dbModel
+      find = {}
+      find[samjs.options.username] = userName
+      query = usersModel.findOne(find)
+      if samjs.models.users.populate
+        query.populate(samjs.models.users.populate)
+      return query
+    ), (user) ->
+      return user.toObject(getters: true)
   return new class AuthMongo
     name: "authMongo"
 
@@ -155,7 +163,7 @@ module.exports = (samjs) ->
       db: "mongo"
       plugins:
         "users": null
-      isRequired: true
+
     }]
 
     parsePermission: parsePermission
