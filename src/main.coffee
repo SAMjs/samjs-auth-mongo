@@ -1,4 +1,5 @@
 # out: ../lib/main.js
+path = require "path"
 module.exports = (samjs) ->
   debug = samjs.debug("auth-mongo")
   throw new Error "samjs-mongo not found - must be loaded before samjs-auth-mongo" unless samjs.mongo
@@ -35,6 +36,9 @@ module.exports = (samjs) ->
 
   samjs.mongo.plugins users: (options) ->
     options ?= {}
+    @installComp ?=
+      paths: [path.resolve(__dirname, "./createUser")]
+      icons: ["material-person","material-vpn_key"]
     pc = @permissionChecker
     pc ?= samjs.options.permissionChecker
     if pc == "inGroup"
