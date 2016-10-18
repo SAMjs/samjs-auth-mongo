@@ -122,7 +122,10 @@ module.exports = (samjs) ->
         query.populate(samjs.models.users.populate)
       return query
     ), (user) ->
-      return user.toObject(getters: true)
+      if user.toObject?
+        return user.toObject(getters: true)
+      else
+        return samjs.helper.clone(user)
   return new class AuthMongo
     name: "authMongo"
 
