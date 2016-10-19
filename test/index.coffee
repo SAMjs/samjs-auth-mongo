@@ -24,7 +24,7 @@ describe "samjs", ->
     .catch -> return true
     .finally ->
       samjs.reset()
-      .plugins(samjsMongo,samjsAuth,samjsMongoAuth,samjsAuthMongo)
+      .plugins(samjsMongo,samjsAuth(),samjsMongoAuth,samjsAuthMongo)
       .options({config:testConfigFile})
       .configs({name:"testConfig",read:"root",write:"root"})
 
@@ -78,8 +78,8 @@ describe "samjs", ->
         users.find().should.be.rejected
       it "should reject users.count", ->
         users.count().should.be.rejected
-      it "should reject users.remove", ->
-        users.remove({name:"root"}).should.be.rejected
+      it "should reject users.delete", ->
+        users.delete({name:"root"}).should.be.rejected
       it "should reject users.insert", ->
         users.insert({name:"root",pwd:"newpwd"})
         .should.be.rejected
@@ -128,8 +128,8 @@ describe "samjs", ->
           .then (result) ->
             result[0].group.should.equal "all"
 
-        it "should users.remove", ->
-          users.remove({name:"root2"})
+        it "should users.delete", ->
+          users.delete({name:"root2"})
           .then (result) ->
             result.length.should.equal 1
 

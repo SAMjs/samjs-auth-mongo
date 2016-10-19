@@ -42,6 +42,8 @@ module.exports = (samjs) ->
     @populate = options.populate
     pc = @permissionChecker
     pc ?= samjs.options.permissionChecker
+    options.read ?= @read
+    options.write ?= @write
     if pc == "inGroup"
       options.read ?= samjs.options.groupRoot
       options.write ?= samjs.options.groupRoot
@@ -50,6 +52,7 @@ module.exports = (samjs) ->
     else
       options.read ?= [samjs.options.rootUser]
       options.write ?= [samjs.options.rootUser]
+
     @isRequired ?= true
     @test = (value) ->
       @dbModel.count {group:samjs.options.groupRoot}
@@ -88,10 +91,20 @@ module.exports = (samjs) ->
           socket.removeAllListeners "authMongo.createRoot"
           socket.removeAllListeners "authMongo.getInstallationInfo"
 
-
+    @addHook "beforeUpdate", (obj) ->
+      if obj?.client? and obj?.query?.doc? and obj.query.cond?
+        if obj.query.doc[samjs.options.password] and samjs.options.oldPassword
+          console.log "test"
+          return samjs.models.users.dbModel.findOne(obj.query.cond)
+          .then (user) ->
+            if user.equals(obj.client.auth.user)
+              unless obj.query.doc[samjs.options.oldPassword]
+                throw new Error "no old password provided"
+              samjs.auth.comparePassword user, obj.query.doc[samjs.options.oldPassword]
+      return obj
     @addHook "afterCreate", ->
       properties = {}
-      properties[samjs.options.username] = {
+      properties[samjs.options.username] ?= {
         type: String
         required: true
         index:
@@ -99,12 +112,12 @@ module.exports = (samjs) ->
         read: options.read
         write: options.write
       }
-      properties[samjs.options.password] = {
+      properties[samjs.options.password] ?= {
         type: String
         required: true
         write: options.write
       }
-      properties[samjs.options.group] = {
+      properties[samjs.options.group] ?= {
         type: String
         required: true
         read: options.read
@@ -116,13 +129,13 @@ module.exports = (samjs) ->
 
   usersModel = null
   samjs.auth.replaceUserHandler ((userName) ->
-      usersModel ?= samjs.models.users.dbModel
-      find = {}
-      find[samjs.options.username] = userName
-      query = usersModel.findOne(find)
-      if samjs.models.users.populate
-        query.populate(samjs.models.users.populate)
-      return query
+    usersModel ?= samjs.models.users.dbModel
+    find = {}
+    find[samjs.options.username] = userName
+    query = usersModel.findOne(find)
+    if samjs.models.users.populate
+      query.populate(samjs.models.users.populate)
+    return query
     ), (user) ->
       if user.toObject?
         return user.toObject(getters: true)
@@ -136,6 +149,7 @@ module.exports = (samjs) ->
       groupRoot: "root"
       group: "group"
       permissionChecker: "inGroup"
+      oldPassword: "oldPwd"
 
     configs: [{
       name: "groups"
