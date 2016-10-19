@@ -68,7 +68,9 @@ module.exports = (samjs) ->
           if request?.content? and request.content[samjs.options.username]? and
               request.content[samjs.options.password]?
             if @plugins.isOwner?
-              request.content.owner = request.content[samjs.options.username]
+              id = samjs.mongo.mongoose.Types.ObjectId()
+              request.content.owner = id
+              request.content._id = id
             @dbModel.create request.content
             .then (result) -> success:true, content:result
             .catch (e) -> success:false, content:e?.message
