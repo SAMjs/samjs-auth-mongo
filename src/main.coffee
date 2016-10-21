@@ -35,6 +35,14 @@ module.exports = (samjs) ->
     return false
 
   samjs.mongo.plugins users: (options) ->
+    samjs.helper.initiateHooks @, [], ["afterLogin","afterLogout"]
+    @addHook "afterLogin", (obj) ->
+      console.log "joining #{obj.user._id}"
+      obj.socket.join(obj.user._id)
+      return obj
+    @addHook "afterLogout", (obj) ->
+      obj.socket.leave(obj.user._id)
+      return obj
     options ?= {}
     @installComp ?=
       paths: [path.resolve(__dirname, "./createUser")]
@@ -92,12 +100,11 @@ module.exports = (samjs) ->
           socket.removeAllListeners "authMongo.getInstallationInfo"
 
     @addHook "beforeUpdate", (obj) ->
-      if obj?.client? and obj?.query?.doc? and obj.query.cond?
+      if obj?.socket?.client? and obj?.query?.doc? and obj.query.cond?
         if obj.query.doc[samjs.options.password] and samjs.options.oldPassword
-          console.log "test"
           return samjs.models.users.dbModel.findOne(obj.query.cond)
           .then (user) ->
-            if user.equals(obj.client.auth.user)
+            if user.equals(obj.socket.client.auth.user)
               unless obj.query.doc[samjs.options.oldPassword]
                 throw new Error "no old password provided"
               samjs.auth.comparePassword user, obj.query.doc[samjs.options.oldPassword]
@@ -115,6 +122,7 @@ module.exports = (samjs) ->
       properties[samjs.options.password] ?= {
         type: String
         required: true
+        read: false
         write: options.write
       }
       properties[samjs.options.group] ?= {
@@ -127,20 +135,7 @@ module.exports = (samjs) ->
       @schema.pre "save", (next) ->
         samjs.auth.crypto.generateHashedPassword(@,next)
 
-  usersModel = null
-  samjs.auth.replaceUserHandler ((userName) ->
-    usersModel ?= samjs.models.users.dbModel
-    find = {}
-    find[samjs.options.username] = userName
-    query = usersModel.findOne(find)
-    if samjs.models.users.populate
-      query.populate(samjs.models.users.populate)
-    return query
-    ), (user) ->
-      if user.toObject?
-        return user.toObject(getters: true)
-      else
-        return samjs.helper.clone(user)
+
   return new class AuthMongo
     name: "authMongo"
 
@@ -186,3 +181,21 @@ module.exports = (samjs) ->
     }]
 
     parsePermission: parsePermission
+
+    startup: ->
+      usersModel = null
+      samjs.auth.replaceUserHandler ((userName) ->
+        usersModel ?= samjs.models.users.dbModel
+        find = {}
+        find[samjs.options.username] = userName
+        query = usersModel.findOne(find)
+        if samjs.models.users.populate
+          query.populate(samjs.models.users.populate)
+        return query
+        ), ((user) ->
+          if user.toObject?
+            return user.toObject(getters: true)
+          else
+            return samjs.helper.clone(user)
+        )
+      samjs.auth.replaceHooks samjs.models.users
