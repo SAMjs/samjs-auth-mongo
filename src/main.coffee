@@ -6,6 +6,28 @@ module.exports = (samjs) ->
   throw new Error "samjs-auth not found - must be loaded before samjs-auth-mongo" unless samjs.auth
   throw new Error "samjs-mongo-auth not found - must be loaded before samjs-auth-mongo" unless samjs.mongoAuth
 
+  usersModel = null
+  samjs.auth.replaceUserHandler ((userName) ->
+    usersModel ?= samjs.models.users.dbModel
+    find = {}
+    find[samjs.options.username] = userName
+    query = usersModel.findOne(find)
+    if samjs.models.users.populate
+      query.populate(samjs.models.users.populate)
+    return query
+    ), ((user) ->
+      if user.toObject?
+        return user.toObject(getters: true)
+      else
+        return samjs.helper.clone(user)
+    )
+  samjs.auth.addHook "afterLogin", (obj) ->
+    obj.socket.join(obj.user._id)
+    return obj
+  samjs.auth.addHook "afterLogout", (obj) ->
+    obj.socket.leave(obj.user._id)
+    return obj
+
   parsePermission = (permission) ->
     unless samjs.util.isArray(permission)
       if samjs.util.isString(permission)
@@ -36,13 +58,7 @@ module.exports = (samjs) ->
 
   samjs.mongo.plugins users: (options) ->
     samjs.helper.initiateHooks @, [], ["afterLogin","afterLogout"]
-    @addHook "afterLogin", (obj) ->
-      console.log "joining #{obj.user._id}"
-      obj.socket.join(obj.user._id)
-      return obj
-    @addHook "afterLogout", (obj) ->
-      obj.socket.leave(obj.user._id)
-      return obj
+
     options ?= {}
     @installComp ?=
       paths: [path.resolve(__dirname, "./createUser")]
@@ -181,21 +197,3 @@ module.exports = (samjs) ->
     }]
 
     parsePermission: parsePermission
-
-    startup: ->
-      usersModel = null
-      samjs.auth.replaceUserHandler ((userName) ->
-        usersModel ?= samjs.models.users.dbModel
-        find = {}
-        find[samjs.options.username] = userName
-        query = usersModel.findOne(find)
-        if samjs.models.users.populate
-          query.populate(samjs.models.users.populate)
-        return query
-        ), ((user) ->
-          if user.toObject?
-            return user.toObject(getters: true)
-          else
-            return samjs.helper.clone(user)
-        )
-      samjs.auth.replaceHooks samjs.models.users
