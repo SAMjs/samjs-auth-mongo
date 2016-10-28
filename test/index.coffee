@@ -26,7 +26,7 @@ describe "samjs", ->
       samjs.reset()
       .plugins(samjsMongo,samjsAuth(),samjsMongoAuth,samjsAuthMongo)
       .options({config:testConfigFile})
-      .configs({name:"testConfig",read:"root",write:"root"})
+      .configs({name:"testConfig",access: {read:"root",write:"root"}})
 
 
   describe "auth-mongo", ->
@@ -74,7 +74,7 @@ describe "samjs", ->
         samjs.state.onceStarted
 
       it "should reject users.find", ->
-        users = new client.Mongo("users")
+        users = client.getMongoModel("users")
         users.find().should.be.rejected
       it "should reject users.count", ->
         users.count().should.be.rejected

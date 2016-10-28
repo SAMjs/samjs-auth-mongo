@@ -8,12 +8,16 @@ module.exports = (samjs) ->
 
   usersModel = null
   samjs.auth.replaceUserHandler ((userName) ->
-    usersModel ?= samjs.models.users.dbModel
-    find = {}
-    find[samjs.options.username] = userName
-    query = usersModel.findOne(find)
-    if samjs.models.users.populate
-      query.populate(samjs.models.users.populate)
+    usersModel ?= samjs.models.users
+    if usersModel.authFind?
+      find = usersModel.authFind(userName)
+    else
+      find = {}
+      find[samjs.options.username] = userName
+    query = usersModel.dbModel.findOne(find)
+    populate = usersModel.populate
+    if populate
+      query.populate(populate)
     return query
     ), ((user) ->
       if user.toObject?
@@ -27,25 +31,44 @@ module.exports = (samjs) ->
   samjs.auth.addHook "afterLogout", (obj) ->
     obj.socket.leave(obj.user._id)
     return obj
-
   parsePermission = (permission) ->
     unless samjs.util.isArray(permission)
       if samjs.util.isString(permission)
         if samjs.options.hierarchical
-          if samjs.configs.groups.value?
-            i = samjs.configs.groups.value.indexOf(permission)
-            return samjs.configs.groups.value.slice i
+          i = samjs.options.groups.indexOf(permission)
+          return samjs.options.groups.slice i
       return [permission]
     return permission
+  samjs.on "beforeConfigs", ->
+    samjs.configs.addHook "afterProcess", (config) ->
+      if (samjs.options.permissionChecker == "inGroup" and not config.permissionChecker?) or
+          (config.permissionChecker? and config.permissionChecker == "inGroup")
+        for mode in ["read","write"]
+          if config[mode]?
+            config[mode] = parsePermission(config[mode])
+      return config
+  samjs.mongo.addHook "afterProcess", (model) ->
+    if (samjs.options.permissionChecker == "inGroup" and not model.permissionChecker?) or
+        (model.permissionChecker? and model.permissionChecker == "inGroup")
+      for key,val of model.schema.paths
+        for mode in ["read","write"]
+          if val.options[mode]?
+            val.options[mode] = parsePermission(val.options[mode])
+    return model
 
-  samjs.auth.permissionCheckers.inGroup = (permission, user) ->
+  samjs.auth.permissionCheckers.inGroup = (permission, user, getIdentifier) ->
+    if getIdentifier
+      if user?
+        return user[samjs.options.group]
+      else
+        return "__public"
     if permission == true
       return true
     else
       if samjs.util.isString(permission)
         permission = parsePermission(permission)
       if samjs.util.isArray(permission)
-        group = user.group
+        group = user[samjs.options.group]
         if samjs.util.isString(group)
           groups = [group]
         else if samjs.util.isArray(group)
@@ -57,29 +80,17 @@ module.exports = (samjs) ->
     return false
 
   samjs.mongo.plugins users: (options) ->
-    samjs.helper.initiateHooks @, [], ["afterLogin","afterLogout"]
-
     options ?= {}
+    @access.read ?= [samjs.options.groupRoot]
+    @access.write ?= [samjs.options.groupRoot]
     @installComp ?=
       paths: [path.resolve(__dirname, "./createUser")]
       icons: ["material-person","material-vpn_key"]
-    @populate = options.populate
-    pc = @permissionChecker
-    pc ?= samjs.options.permissionChecker
-    options.read ?= @read
-    options.write ?= @write
-    if pc == "inGroup"
-      options.read ?= samjs.options.groupRoot
-      options.write ?= samjs.options.groupRoot
-      options._read = parsePermission(options.read)
-      options._write = parsePermission(options.write)
-    else
-      options.read ?= [samjs.options.rootUser]
-      options.write ?= [samjs.options.rootUser]
-
     @isRequired ?= true
     @test = (value) ->
-      @dbModel.count {group:samjs.options.groupRoot}
+      query = {}
+      query[samjs.options.group] = samjs.options.groupRoot
+      @dbModel.count query
       .then (data) ->
         if data == 0
           throw new Error "no #{samjs.options.groupRoot} found"
@@ -125,7 +136,7 @@ module.exports = (samjs) ->
                 throw new Error "no old password provided"
               samjs.auth.comparePassword user, obj.query.doc[samjs.options.oldPassword]
       return obj
-    @addHook "afterCreate", ->
+    @addHook "afterCreate", (obj) ->
       properties = {}
       properties[samjs.options.username] ?= {
         type: String
@@ -150,6 +161,7 @@ module.exports = (samjs) ->
       @schema.add(properties)
       @schema.pre "save", (next) ->
         samjs.auth.crypto.generateHashedPassword(@,next)
+      return obj
 
 
   return new class AuthMongo
@@ -159,33 +171,9 @@ module.exports = (samjs) ->
       hierarchical: true
       groupRoot: "root"
       group: "group"
+      groups: ["root"]
       permissionChecker: "inGroup"
       oldPassword: "oldPwd"
-
-    configs: [{
-      name: "groups"
-      value: ["root"]
-      test: (value) -> new samjs.Promise (resolve, reject) ->
-        if samjs.util.isArray(value)
-          resolve(data)
-        else
-          reject(data)
-      hooks:
-        afterCreate: (config) ->
-          config.read ?= samjs.options.groupRoot
-          config.write ?= samjs.options.groupRoot
-        after_Set: (obj) ->
-          for d,i in obj.data
-            if obj.oldData[i] != d
-              for name, config of samjs.configs
-                config._read = null
-                config._write = null
-              for name, model of samjs.models
-                model._read = null
-                model._write = null
-              break
-          return obj
-      }]
 
     models: [{
       name: "users"
@@ -193,7 +181,4 @@ module.exports = (samjs) ->
       db: "mongo"
       plugins:
         "users": null
-
     }]
-
-    parsePermission: parsePermission
