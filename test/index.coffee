@@ -23,10 +23,10 @@ describe "samjs", ->
     fs.unlinkAsync testConfigFile
     .catch -> return true
     .finally ->
-      samjs.reset()
-      .plugins(samjsMongo,samjsAuth(),samjsMongoAuth,samjsAuthMongo)
-      .options({config:testConfigFile})
-      .configs({name:"testConfig",access: {read:"root",write:"root"}})
+      samjs.reset().then ->
+        samjs.plugins(samjsMongo,samjsAuth(),samjsMongoAuth,samjsAuthMongo)
+        .options({config:testConfigFile})
+        .configs({name:"testConfig",access: {read:"root",write:"root"}})
 
 
   describe "auth-mongo", ->

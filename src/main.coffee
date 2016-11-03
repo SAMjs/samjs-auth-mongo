@@ -26,10 +26,15 @@ module.exports = (samjs) ->
         return samjs.helper.clone(user)
     )
   samjs.auth.addHook "afterLogin", (obj) ->
-    obj.socket.join(obj.user._id)
+    socket = obj.socket.client.nsps["/"]
+    socket.join(obj.user._id)
+    socket.join(obj.user.group) if obj.user.group
+
     return obj
   samjs.auth.addHook "afterLogout", (obj) ->
-    obj.socket.leave(obj.user._id)
+    socket = obj.socket.client.nsps["/"]
+    socket.leave(obj.user._id)
+    socket.leave(obj.user.group) if obj.user.group
     return obj
   parsePermission = (permission) ->
     unless samjs.util.isArray(permission)
@@ -41,29 +46,30 @@ module.exports = (samjs) ->
     return permission
   samjs.on "beforeConfigs", ->
     samjs.configs.addHook "afterProcess", (config) ->
-      if (samjs.options.permissionChecker == "inGroup" and not config.permissionChecker?) or
-          (config.permissionChecker? and config.permissionChecker == "inGroup")
+      if (samjs.options.authOptions.permissionChecker == "inGroup" and not config.authOptions?.permissionChecker?) or
+          (config.authOptions?.permissionChecker? and config.authOptions.permissionChecker == "inGroup")
         for mode in ["read","write"]
           if config[mode]?
             config[mode] = parsePermission(config[mode])
       return config
   samjs.mongo.addHook "afterProcess", (model) ->
-    if (samjs.options.permissionChecker == "inGroup" and not model.permissionChecker?) or
-        (model.permissionChecker? and model.permissionChecker == "inGroup")
+    if (samjs.options.authOptions.permissionChecker == "inGroup" and not model.authOptions?.permissionChecker?) or
+        (model.authOptions?.permissionChecker? and model.authOptions.permissionChecker == "inGroup")
       for key,val of model.schema.paths
         for mode in ["read","write"]
           if val.options[mode]?
             val.options[mode] = parsePermission(val.options[mode])
     return model
 
-  samjs.auth.permissionCheckers.inGroup = (permission, user, getIdentifier) ->
-    if getIdentifier
+  samjs.auth.permissionCheckers.inGroup = (user, permission, options) ->
+    if options.getIdentifier
       if user?
         return user[samjs.options.group]
       else
         return "__public"
     if permission == true
-      return true
+      if !options.authRequired or user?
+        return true
     else
       if samjs.util.isString(permission)
         permission = parsePermission(permission)
@@ -172,7 +178,8 @@ module.exports = (samjs) ->
       groupRoot: "root"
       group: "group"
       groups: ["root"]
-      permissionChecker: "inGroup"
+      authOptions:
+        permissionChecker: "inGroup"
       oldPassword: "oldPwd"
 
     models: [{
