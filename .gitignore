@@ -1,3 +1,5 @@
 node_modules/
 test/testConfig.json
 config.json
+lib/
+.vscode

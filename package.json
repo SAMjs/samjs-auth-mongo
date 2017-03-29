@@ -11,6 +11,9 @@
   "engines": {
     "node": "*"
   },
+  "files": [
+    "lib/"
+  ],
   "dependencies": {},
   "devDependencies": {
     "atom-ui-reporter": "0.0.1",
@@ -31,15 +34,14 @@
     "samjs-mongo-auth": "^0.2.1",
     "samjs-mongo-client": "^0.2.0",
     "script-runner": "^0.1.5",
-    "vue-compiler": "^1.0.0",
-    "vue-html-loader": "^1.2.3"
+    "ceri-compiler": "^1.0.0"
   },
   "keywords": [],
   "readmeFilename": "README.md",
   "scripts": {
     "build": "run-npm build:*",
     "build:coffee": "coffee --no-header --compile --output lib/ src/*.coffee",
-    "build:vue": "vue-compiler --out lib/ src/*.vue",
+    "build:ceri": "ceri-compiler --out lib/ lib/createUser.js",
     "dev": "coffee dev/server.coffee",
     "test": "mocha",
     "preversion": "npm test",

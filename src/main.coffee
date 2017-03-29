@@ -91,7 +91,7 @@ module.exports = (samjs) ->
     @access.write ?= [samjs.options.groupRoot]
     @installComp ?=
       paths: [path.resolve(__dirname, "./createUser")]
-      icons: ["material-person","material-vpn_key"]
+      icons: ["ma-person","ma-vpn_key"]
     @isRequired ?= true
     @test = (value) ->
       query = {}
